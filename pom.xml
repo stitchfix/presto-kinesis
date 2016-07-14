@@ -24,6 +24,7 @@
         <dep.aws-sdk.version>1.11.12</dep.aws-sdk.version>
         <dep.kinesis-client.version>1.6.3</dep.kinesis-client.version>
         <air.check.fail-enforcer>false</air.check.fail-enforcer>
+        <local.build.version>${project.version}.1</local.build.version>
     </properties>
 
     <artifactId>presto-kinesis</artifactId>
@@ -370,6 +371,8 @@
     </distributionManagement>
 
     <build>
+        <!-- Let the version vary as we do local builds. -->
+        <finalName>${project.artifactId}-${local.build.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
