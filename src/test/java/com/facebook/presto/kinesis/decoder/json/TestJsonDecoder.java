@@ -98,9 +98,16 @@ public class TestJsonDecoder
         KinesisColumnHandle row3 = new KinesisColumnHandle("", 2, "user_string", VarcharType.VARCHAR, "user", null, null, false, false);
         KinesisColumnHandle row4 = new KinesisColumnHandle("", 3, "timestamp", BigintType.BIGINT, "timestamp", null, null, false, false);
         KinesisColumnHandle row5 = new KinesisColumnHandle("", 4, "browser_name", VarcharType.VARCHAR, "environment/browser/name", null, null, false, false);
+        // Full array
         KinesisColumnHandle row6 = new KinesisColumnHandle("", 5, "tags_array", VarcharType.VARCHAR, "tags", null, null, false, false);
+        // One element of array
+        KinesisColumnHandle row7 = new KinesisColumnHandle("", 6, "tags_first", VarcharType.VARCHAR, "tags[0]", null, null, false, false);
+        // One element of array and get its field
+        KinesisColumnHandle row8 = new KinesisColumnHandle("", 7, "first_item_value", BigintType.BIGINT, "items[0]/value", null, null, false, false);
+        // Non existent element that should be null
+        KinesisColumnHandle row9 = new KinesisColumnHandle("", 8, "third_id", BigintType.BIGINT, "items[2]/id", null, null, false, false);
 
-        List<KinesisColumnHandle> columns = ImmutableList.of(row1, row2, row3, row4, row5, row6);
+        List<KinesisColumnHandle> columns = ImmutableList.of(row1, row2, row3, row4, row5, row6, row7, row8, row9);
         Set<KinesisFieldValueProvider> providers = new HashSet<>();
 
         log.info("Decoding row from event JSON file");
@@ -119,6 +126,11 @@ public class TestJsonDecoder
         checkValue(providers, row4, 1450214872847L);
         checkValue(providers, row5, "Chrome");
         checkValue(providers, row6, "[\"tag1\",\"tag2\",\"tag3\"]");
+
+        checkValue(providers, row7, "tag1");
+        checkValue(providers, row8, 42);
+        checkIsNull(providers, row9);
+
         log.info("DONE");
     }
 

@@ -18,5 +18,6 @@
     "email" : "joeblow@wherever.com",
     "handle" : "joeblow"
   },
-  "tags" : ["tag1", "tag2", "tag3"]
+  "tags" : ["tag1", "tag2", "tag3"],
+  "items" : [{"id" : 100, "value" : 42}, {"id" : 200, "value" : 84}]
 }

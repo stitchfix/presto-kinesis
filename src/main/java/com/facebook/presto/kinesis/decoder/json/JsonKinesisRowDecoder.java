@@ -82,10 +82,35 @@ public class JsonKinesisRowDecoder
 
         JsonNode currentNode = tree;
         for (String pathElement : Splitter.on('/').omitEmptyStrings().split(mapping)) {
-            if (!currentNode.has(pathElement)) {
+            String baseName = pathElement;
+            int index = -1;
+            if (pathElement.contains("[")) {
+                String[] splits = pathElement.split("[\\[\\]]");
+                if (splits.length == 2) {
+                    if (splits[1].matches("[0-9]+")) {
+                        index = Integer.parseInt(splits[1]);
+                    }
+                }
+                baseName = splits[0];
+            }
+
+            if (!currentNode.has(baseName)) {
                 return MissingNode.getInstance();
             }
-            currentNode = currentNode.path(pathElement);
+
+            currentNode = currentNode.path(baseName);
+            if (index >= 0 && currentNode.isArray()) {
+                currentNode = currentNode.get(index);
+
+                // From Jackson docs: If index is less than 0, or equal-or-greater than node.size(), null is returned;
+                // no exception is thrown for any index.
+                if (currentNode == null) {
+                    return MissingNode.getInstance();
+                }
+                else if (currentNode.isMissingNode() || currentNode.isNull()) {
+                    return currentNode; // don't continue
+                }
+            }
         }
         return currentNode;
     }
