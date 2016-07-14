@@ -23,6 +23,7 @@
     <properties>
         <dep.aws-sdk.version>1.11.12</dep.aws-sdk.version>
         <dep.kinesis-client.version>1.6.3</dep.kinesis-client.version>
+        <air.check.fail-enforcer>false</air.check.fail-enforcer>
     </properties>
 
     <artifactId>presto-kinesis</artifactId>
