@@ -231,6 +231,10 @@ public class S3TableConfigClient implements ConnectorShutdown
                     catch (IOException iox) {
                         log.error("Problem reading input stream from object.", iox);
                     }
+                    catch (IllegalArgumentException iax) {
+                        // Note: this gets thrown by airlift json library when the input is malformed.
+                        log.error("Invalid JSON table description.", iax);
+                    }
                 }
                 catch (AmazonServiceException ase) {
                     StringBuilder sb = new StringBuilder();

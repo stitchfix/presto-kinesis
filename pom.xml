@@ -359,20 +359,19 @@
         </dependency>
     </dependencies>
 
+    <!-- Credentials go into settings.xml -->
     <distributionManagement>
         <snapshotRepository>
-            <id>nexus-snapshots</id>
-            <url>http://nexus.vertigo.stitchfix.com/nexus/content/repositories/snapshots</url>
+            <id>artifactory-snapshots</id>
+            <url>http://artifactory.vertigo.stitchfix.com/artifactory/snapshots</url>
         </snapshotRepository>
         <repository>
-            <id>nexus-releases</id>
-            <url>http://nexus.vertigo.stitchfix.com/nexus/content/repositories/releases</url>
+            <id>artifactory-releases</id>
+            <url>http://artifactory.vertigo.stitchfix.com/artifactory/releases</url>
         </repository>
     </distributionManagement>
 
     <build>
-        <!-- Let the version vary as we do local builds. -->
-        <finalName>${project.artifactId}-${local.build.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
