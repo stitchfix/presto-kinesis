@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.kinesis;
 
-import com.facebook.presto.execution.QueryId;
+import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.security.Identity;
 import io.airlift.log.Logger;
 

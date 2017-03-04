@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.facebook.presto.spi.connector.Connector;
+import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.type.TypeManager;
@@ -50,8 +51,6 @@ public class KinesisConnectorFactory
     public static final String connectorName = "kinesis";
     private static final Logger log = Logger.get(KinesisConnectorFactory.class);
 
-    private TypeManager typeManager;
-    private NodeManager nodeManager;
     private Optional<Supplier<Map<SchemaTableName, KinesisStreamDescription>>> tableDescriptionSupplier = Optional.empty();
     private Map<String, String> optionalConfig = ImmutableMap.of();
     private Optional<Class<? extends KinesisClientProvider>> altProviderClass = Optional.empty();
@@ -60,14 +59,10 @@ public class KinesisConnectorFactory
 
     private Injector injector;
 
-    KinesisConnectorFactory(TypeManager typeManager,
-                            NodeManager nodeManager,
-                            Optional<Supplier<Map<SchemaTableName, KinesisStreamDescription>>> tableDescriptionSupplier,
+    KinesisConnectorFactory(Optional<Supplier<Map<SchemaTableName, KinesisStreamDescription>>> tableDescriptionSupplier,
                             Map<String, String> optionalConfig,
                             Optional<Class<? extends KinesisClientProvider>> altProviderClass)
     {
-        this.typeManager = requireNonNull(typeManager, "typeManager is null");
-        this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
         this.tableDescriptionSupplier = requireNonNull(tableDescriptionSupplier, "tableDescriptionSupplier is null");
         this.optionalConfig = requireNonNull(optionalConfig, "optionalConfig is null");
         this.altProviderClass = requireNonNull(altProviderClass, "altProviderClass is null");
@@ -93,7 +88,7 @@ public class KinesisConnectorFactory
     }
 
     @Override
-    public Connector create(String connectorId, Map<String, String> config)
+    public Connector create(String connectorId, Map<String, String> config, ConnectorContext context)
     {
         log.info("In connector factory create method.  Connector id: " + connectorId);
         requireNonNull(connectorId, "connectorId is null");
@@ -102,15 +97,14 @@ public class KinesisConnectorFactory
         try {
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
-                    new KinesisConnectorModule(),
                     new Module()
                     {
                         @Override
                         public void configure(Binder binder)
                         {
                             binder.bindConstant().annotatedWith(Names.named("connectorId")).to(connectorId);
-                            binder.bind(TypeManager.class).toInstance(typeManager);
-                            binder.bind(NodeManager.class).toInstance(nodeManager);
+                            binder.bind(TypeManager.class).toInstance(context.getTypeManager());
+                            binder.bind(NodeManager.class).toInstance(context.getNodeManager());
                             // Note: moved creation from KinesisConnectorModule because connector manager accesses it earlier!
                             binder.bind(KinesisHandleResolver.class).toInstance(handleResolver);
 
@@ -129,7 +123,8 @@ public class KinesisConnectorFactory
                                 binder.bind(new TypeLiteral<Supplier<Map<SchemaTableName, KinesisStreamDescription>>>() {}).to(KinesisTableDescriptionSupplier.class).in(Scopes.SINGLETON);
                             }
                         }
-                    }
+                    },
+                    new KinesisConnectorModule()
                 );
 
             this.injector = app.strictConfig()

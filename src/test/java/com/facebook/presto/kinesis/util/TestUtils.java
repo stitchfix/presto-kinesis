@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import com.facebook.presto.connector.ConnectorAwareNodeManager;
+import com.facebook.presto.connector.ConnectorId;
 import com.facebook.presto.kinesis.KinesisClientProvider;
 import com.facebook.presto.kinesis.KinesisConnector;
 import com.facebook.presto.kinesis.KinesisPlugin;
@@ -26,10 +28,13 @@ import com.facebook.presto.kinesis.KinesisStreamFieldDescription;
 import com.facebook.presto.kinesis.KinesisStreamFieldGroup;
 import com.facebook.presto.kinesis.KinesisTableDescriptionSupplier;
 import com.facebook.presto.metadata.InMemoryNodeManager;
+import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.connector.Connector;
+import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.facebook.presto.spi.type.BigintType;
+import com.facebook.presto.spi.type.TypeManager;
 import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.presto.testing.QueryRunner;
 import com.facebook.presto.type.TypeRegistry;
@@ -53,6 +58,31 @@ public class TestUtils
     private TestUtils() {}
 
     /**
+     * Test connector context class
+     */
+    public static class TestConnectorContext implements ConnectorContext
+    {
+        private final NodeManager nodeManager;
+        private final TypeManager typeManager;
+
+        public TestConnectorContext()
+        {
+            this.nodeManager = new ConnectorAwareNodeManager(new InMemoryNodeManager(), "testenv", new ConnectorId("kinesis"));
+            this.typeManager = new TypeRegistry();
+        }
+
+        public NodeManager getNodeManager()
+        {
+            return this.nodeManager;
+        }
+
+        public TypeManager getTypeManager()
+        {
+            return this.typeManager;
+        }
+    }
+
+    /**
      * Create the plug in instance with other dependencies setup.
      *
      * This is done separately so that the injector can be pulled out to get at
@@ -63,11 +93,6 @@ public class TestUtils
     public static KinesisPlugin createPluginInstance()
     {
         KinesisPlugin kinesisPlugin = new KinesisPlugin();
-
-        // Normally done by plug in manager, handle manually here
-        kinesisPlugin.setTypeManager(new TypeRegistry());
-        kinesisPlugin.setNodeManager(new InMemoryNodeManager());
-
         return kinesisPlugin;
     }
 
@@ -91,10 +116,13 @@ public class TestUtils
             plugin.setAltProviderClass(KinesisTestClientManager.class);
         }
 
-        ConnectorFactory factory = plugin.getServices(ConnectorFactory.class).get(0);
+        TestConnectorContext context = new TestUtils.TestConnectorContext();
+        Iterable<ConnectorFactory> factories = plugin.getConnectorFactories();
+        assertNotNull(factories);
+        ConnectorFactory factory = factories.iterator().next();
         assertNotNull(factory);
 
-        Connector connector = factory.create("kinesis", properties);
+        Connector connector = factory.create("kinesis", properties, context);
         assertTrue(connector instanceof KinesisConnector);
         return (KinesisConnector) connector;
     }

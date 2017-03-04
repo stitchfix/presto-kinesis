@@ -46,8 +46,8 @@ import com.google.inject.Inject;
 public class KinesisSplitManager
         implements ConnectorSplitManager
 {
-    /** Max age of the shard cache (currently 24 hours). */
-    public static final long MAX_CACHE_AGE_MILLIS = 24 * 3600 * 1000;
+    /** Max age of the shard cache (currently 12 hours). */
+    public static final long MAX_CACHE_AGE_MILLIS = 12 * 3600 * 1000;
 
     private final String connectorId;
     private final KinesisHandleResolver handleResolver;
@@ -126,7 +126,7 @@ public class KinesisSplitManager
             builder.add(split);
         }
 
-        return new FixedSplitSource(connectorId, builder.build());
+        return new FixedSplitSource(builder.build());
     }
 
     /**

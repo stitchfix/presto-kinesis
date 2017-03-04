@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
@@ -126,6 +127,7 @@ public class TestS3TableConfigClient
         // Read table definition and verify
         Map<SchemaTableName, KinesisStreamDescription> readMap = supplier.get();
         assertTrue(!readMap.isEmpty());
+        assertEquals(1, readMap.size());
 
         SchemaTableName tblName = new SchemaTableName("prod", "test_table");
         KinesisStreamDescription desc = readMap.get(tblName);
@@ -141,5 +143,26 @@ public class TestS3TableConfigClient
         assertEquals(grp.getDataFormat(), "json");
         List<KinesisStreamFieldDescription> fieldList = grp.getFields();
         assertEquals(fieldList.size(), 4); // (4 fields in test_table.json)
+    }
+
+    @Test
+    public void testMapBuilding()
+    {
+        // Build hash map and make immutable map out of it, ensure it's a safe thing to do
+        HashMap<String, String> theMap = new HashMap<String, String>();
+        theMap.put("key1", "myvalue1");
+        theMap.put("key2", "myvalue2");
+        theMap.put("key3", "myvalue3");
+        theMap.put("key1", "myvalue1replaced");
+
+        assertEquals(3, theMap.size());
+
+        ImmutableMap<String, String> theImmutableMap = ImmutableMap.copyOf(theMap);
+        assertEquals(3, theImmutableMap.size());
+
+        theMap.clear(); // Original map is gone
+        assertEquals(3, theImmutableMap.size());
+        assertEquals("myvalue3", theImmutableMap.get("key3"));
+
     }
 }

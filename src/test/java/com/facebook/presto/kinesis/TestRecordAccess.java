@@ -15,6 +15,7 @@ package com.facebook.presto.kinesis;
 
 import com.facebook.presto.kinesis.util.KinesisTestClientManager;
 import com.facebook.presto.kinesis.util.MockKinesisClient;
+import com.facebook.presto.security.AllowAllAccessControl;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.testing.MaterializedRow;
 import io.airlift.log.Logger;
@@ -148,8 +149,7 @@ public class TestRecordAccess
             throws Exception
     {
         QualifiedObjectName name = new QualifiedObjectName("kinesis", "default", dummyStreamName);
-
-        transaction(queryRunner.getTransactionManager())
+        transaction(queryRunner.getTransactionManager(), new AllowAllAccessControl())
                 .singleStatement()
                 .execute(SESSION, session -> {
                     Optional<TableHandle> handle = queryRunner.getServer().getMetadata().getTableHandle(session, name);

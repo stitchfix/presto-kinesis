@@ -32,6 +32,7 @@ public class KinesisStreamDescription
     private final String streamName;
     private final String schemaName;
     private final KinesisStreamFieldGroup message;
+    private final long creationTimestamp;
 
     @JsonCreator
     public KinesisStreamDescription(
@@ -45,6 +46,7 @@ public class KinesisStreamDescription
         this.streamName = checkNotNull(streamName, "topicName is null");
         this.schemaName = schemaName;
         this.message = message;
+        this.creationTimestamp = System.currentTimeMillis();
     }
 
     @JsonProperty
@@ -69,6 +71,11 @@ public class KinesisStreamDescription
     public KinesisStreamFieldGroup getMessage()
     {
         return message;
+    }
+
+    public long getCreationTimestamp()
+    {
+        return creationTimestamp;
     }
 
     @Override

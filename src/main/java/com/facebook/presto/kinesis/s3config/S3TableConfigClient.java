@@ -39,9 +39,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import static java.util.Objects.requireNonNull;
@@ -50,6 +50,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Utility class to retrieve table definitions from a common place on Amazon S3.
@@ -63,6 +64,9 @@ public class S3TableConfigClient implements ConnectorShutdown
 {
     private static final Logger log = Logger.get(S3TableConfigClient.class);
 
+    private static final KinesisStreamDescription dummyStreamDesc =
+            new KinesisStreamDescription("__DUMMY__", "__DUMMY__", "__DUMMY__", null);
+
     public final KinesisConnectorConfig kinesisConnectorConfig;
     private final KinesisClientProvider clientManager;
     private final JsonCodec<KinesisStreamDescription> streamDescriptionCodec;
@@ -71,8 +75,9 @@ public class S3TableConfigClient implements ConnectorShutdown
     private long lastCheck = 0;
     private ScheduledFuture<?> updateTaskHandle = null;
 
-    private Map<String, KinesisStreamDescription> internalMap =
-            Collections.synchronizedMap(new HashMap<String, KinesisStreamDescription>());
+    private HashMap<String, KinesisStreamDescription> internalMap =
+            new HashMap<String, KinesisStreamDescription>();
+    private ReentrantReadWriteLock internalMapLock = new ReentrantReadWriteLock();
 
     @Inject
     public S3TableConfigClient(KinesisConnectorConfig aConnectorConfig,
@@ -100,18 +105,36 @@ public class S3TableConfigClient implements ConnectorShutdown
      * Main entry point to get table definitions from S3 using bucket and object directory
      * given in the configuration.
      *
-     * For safety, an immutable copy built from the internal map is returned.
+     * For safety, an immutable copy built from the internal map is returned.  If multiple table
+     * definitions for the same schema/table exist in the internal map, then the most recently
+     * created one takes precedence (and a warning is logged).
      *
      * @return
      */
     public Map<SchemaTableName, KinesisStreamDescription> getTablesFromS3()
     {
-        Collection<KinesisStreamDescription> streamValues = this.internalMap.values();
-        ImmutableMap.Builder<SchemaTableName, KinesisStreamDescription> builder = ImmutableMap.builder();
-        for (KinesisStreamDescription stream : streamValues) {
-            builder.put(new SchemaTableName(stream.getSchemaName(), stream.getTableName()), stream);
+        HashMap<SchemaTableName, KinesisStreamDescription> intermediateMap = new HashMap<SchemaTableName, KinesisStreamDescription>();
+        internalMapLock.readLock().lock();
+        try {
+            Collection<KinesisStreamDescription> streamValues = this.internalMap.values();
+            for (KinesisStreamDescription stream : streamValues) {
+                SchemaTableName schemaTable = new SchemaTableName(stream.getSchemaName(), stream.getTableName());
+                KinesisStreamDescription currentValue = intermediateMap.get(schemaTable);
+                if (currentValue == null || stream.getCreationTimestamp() >= currentValue.getCreationTimestamp()) {
+                    intermediateMap.put(new SchemaTableName(stream.getSchemaName(), stream.getTableName()), stream);
+                }
+
+                if (currentValue != null) {
+                    log.warn("Note: duplicate definitions found for table %s.%s - only most recent definition used.",
+                             stream.getSchemaName(), stream.getTableName());
+                }
+            }
         }
-        return builder.build();
+        finally {
+            internalMapLock.readLock().unlock();
+        }
+
+        return ImmutableMap.copyOf(intermediateMap);
     }
 
     /** Shutdown any periodic update jobs. */
@@ -126,9 +149,12 @@ public class S3TableConfigClient implements ConnectorShutdown
 
     protected void startS3Updates()
     {
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        this.updateTaskHandle =
-                scheduler.scheduleAtFixedRate(() -> updateTablesFromS3(), 5, 600, TimeUnit.SECONDS);
+        if (updateTaskHandle == null) {
+            ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+            this.updateTaskHandle =
+                    scheduler.scheduleAtFixedRate(() -> updateTablesFromS3(), 5, 600, TimeUnit.SECONDS);
+            log.info("Periodic read of S3 location for table definitions has started.");
+        }
         return;
     }
 
@@ -198,8 +224,21 @@ public class S3TableConfigClient implements ConnectorShutdown
         AmazonS3Client s3client = this.clientManager.getS3Client();
         AmazonS3URI directoryURI = new AmazonS3URI(this.bucketUrl);
 
+        // Build map of "deltas" which in the end contains new definitions and deleted tables
+        HashMap<String, KinesisStreamDescription> deltasMap = new HashMap<String, KinesisStreamDescription>();
+        internalMapLock.readLock().lock();
+        try {
+            Iterator<String> keysIter = this.internalMap.keySet().iterator();
+            while (keysIter.hasNext()) {
+                deltasMap.put(keysIter.next(), dummyStreamDesc);
+            }
+        }
+        finally {
+            internalMapLock.readLock().unlock();
+        }
+
         for (S3ObjectSummary objInfo : objectList) {
-            if (!this.internalMap.containsKey(objInfo.getKey()) || objInfo.getLastModified().getTime() >= this.lastCheck) {
+            if (!deltasMap.containsKey(objInfo.getKey()) || objInfo.getLastModified().getTime() >= this.lastCheck) {
                 // New or updated file, so we must read from AWS
                 try {
                     if (objInfo.getKey().endsWith("/")) {
@@ -225,8 +264,8 @@ public class S3TableConfigClient implements ConnectorShutdown
 
                         KinesisStreamDescription table = streamDescriptionCodec.fromJson(resultStr.toString());
 
-                        internalMap.put(objInfo.getKey(), table);
-                        log.info("Put table description into the map from %s", objInfo.getKey());
+                        deltasMap.put(objInfo.getKey(), table);
+                        log.info("Put table description into the map from %s : %s.%s", objInfo.getKey(), table.getSchemaName(), table.getTableName());
                     }
                     catch (IOException iox) {
                         log.error("Problem reading input stream from object.", iox);
@@ -258,7 +297,29 @@ public class S3TableConfigClient implements ConnectorShutdown
                     log.error(sb.toString(), ace);
                 }
             }
+            else if (deltasMap.containsKey(objInfo.getKey())) {
+                deltasMap.remove(objInfo.getKey());
+            }
         } // end loop through object descriptions
+
+        // Deltas: key pointing to dummy means delete, key pointing to other object means update.
+        // This approach lets us delete and update while shortening the locked critical section.
+        Iterator<Map.Entry<String, KinesisStreamDescription>> deltasIter = deltasMap.entrySet().iterator();
+        internalMapLock.writeLock().lock();
+        try {
+            while (deltasIter.hasNext()) {
+                Map.Entry<String, KinesisStreamDescription> entry = deltasIter.next();
+                if (entry.getValue().getTableName().equals("__DUMMY__")) {
+                    this.internalMap.remove(entry.getKey());
+                }
+                else {
+                    this.internalMap.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        finally {
+            internalMapLock.writeLock().unlock();
+        }
 
         log.info("Completed updating table definitions from S3.");
         this.lastCheck = now;

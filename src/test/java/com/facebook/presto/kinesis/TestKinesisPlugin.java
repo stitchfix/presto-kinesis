@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.kinesis;
 
-import java.util.List;
+import java.util.Iterator;
 
 import com.facebook.presto.kinesis.util.TestUtils;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
@@ -44,10 +44,20 @@ public class TestKinesisPlugin
         KinesisPlugin plugin = TestUtils.createPluginInstance();
 
         // Create factory manually to double check everything is done right
-        List<ConnectorFactory> factories = plugin.getServices(ConnectorFactory.class);
+        Iterable<ConnectorFactory> factories = plugin.getConnectorFactories();
         assertNotNull(factories);
-        assertEquals(factories.size(), 1);
-        ConnectorFactory factory = factories.get(0);
+
+        Iterator<ConnectorFactory> iterator = factories.iterator();
+        int count = 0;
+        ConnectorFactory factory = null;
+        while (iterator.hasNext()) {
+            count++;
+            if (factory == null) {
+                factory = iterator.next();
+            }
+        }
+
+        assertEquals(count, 1);
         assertNotNull(factory);
         return factory;
     }
@@ -59,6 +69,7 @@ public class TestKinesisPlugin
     @Test
     public void testSpinUp(String awsAccessKey, String awsSecretKey)
     {
+        TestUtils.TestConnectorContext context = new TestUtils.TestConnectorContext();
         ConnectorFactory factory = testConnectorExists();
         // Important: this has to be created before we setup the injector in the factory:
         assertNotNull(factory.getHandleResolver());
@@ -67,7 +78,7 @@ public class TestKinesisPlugin
                 .put("kinesis.hide-internal-columns", "false")
                 .put("kinesis.access-key", TestUtils.noneToBlank(awsAccessKey))
                 .put("kinesis.secret-key", TestUtils.noneToBlank(awsSecretKey))
-                .build());
+                .build(), context);
         assertNotNull(c);
 
         // Verify that the key objects have been created on the connector
@@ -78,5 +89,6 @@ public class TestKinesisPlugin
 
         ConnectorTransactionHandle handle = c.beginTransaction(READ_COMMITTED, true);
         assertTrue(handle != null && handle instanceof KinesisTransactionHandle);
+
     }
 }
