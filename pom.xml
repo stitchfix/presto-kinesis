@@ -7,7 +7,7 @@
         <groupId>com.facebook.presto</groupId>
         <artifactId>presto-root</artifactId>
         <!-- Current working version of presto.  Original: 0.105  SF: 0.130  Latest: 0.149 -->
-        <version>0.157.1</version>
+        <version>0.167-t.0.6</version>
     </parent>
 
     <!-- Notes on AWS versions and related dependencies:

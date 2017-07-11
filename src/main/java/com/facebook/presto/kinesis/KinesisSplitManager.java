@@ -31,6 +31,7 @@ import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.FixedSplitSource;
+import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 
@@ -108,7 +109,8 @@ public class KinesisSplitManager
     }
 
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layout)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session,
+                                          ConnectorTableLayoutHandle layout, List<ColumnHandle> columns)
     {
         KinesisTableLayoutHandle kinesislayout = handleResolver.convertLayout(layout);
         KinesisTableHandle kinesisTableHandle = kinesislayout.getTable();
