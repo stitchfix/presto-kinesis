@@ -6,13 +6,13 @@
          by running maven <goals> -settings settings.xml  (use double dash settings) -->
     <servers>
         <server>
-            <username>admin</username>
-            <password>APBuNy6VoybPdws1NTytGhZ6SN</password>
+            <username>flotilla</username>
+            <password>dummy</password>
             <id>artifactory-releases</id>
         </server>
         <server>
-            <username>admin</username>
-            <password>APBuNy6VoybPdws1NTytGhZ6SN</password>
+            <username>flotilla</username>
+            <password>dummy</password>
             <id>artifactory-snapshots</id>
         </server>
     </servers>
